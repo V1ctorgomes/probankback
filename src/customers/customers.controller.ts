@@ -7,7 +7,6 @@ import {
   Post,
   Query,
   UseGuards,
-  UsePipes,
 } from '@nestjs/common';
 import { UserRole } from '@prisma/client';
 import { CustomersService } from './customers.service';
@@ -32,9 +31,9 @@ export class CustomersController {
 
   @Post()
   @Roles(UserRole.ADMIN, UserRole.OPERADOR)
-  @UsePipes(new ZodValidationPipe(createCustomerSchema))
   create(
-    @Body() body: Parameters<CustomersService['create']>[0],
+    @Body(new ZodValidationPipe(createCustomerSchema))
+    body: Parameters<CustomersService['create']>[0],
     @CurrentUser() user: AuthUser,
     @ClientIp() ip: string,
   ) {
@@ -58,10 +57,10 @@ export class CustomersController {
 
   @Patch(':id')
   @Roles(UserRole.ADMIN, UserRole.OPERADOR)
-  @UsePipes(new ZodValidationPipe(updateCustomerSchema))
   update(
     @Param('id') id: string,
-    @Body() body: Parameters<CustomersService['update']>[1],
+    @Body(new ZodValidationPipe(updateCustomerSchema))
+    body: Parameters<CustomersService['update']>[1],
     @CurrentUser() user: AuthUser,
     @ClientIp() ip: string,
   ) {

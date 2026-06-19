@@ -4,11 +4,10 @@ import {
   Post,
   UnauthorizedException,
   UseGuards,
-  UsePipes,
 } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
-import { loginSchema, refreshSchema } from './dto/auth.dto';
+import { loginSchema, refreshSchema, type LoginDto } from './dto/auth.dto';
 import { ZodValidationPipe } from '../common/pipes/zod-validation.pipe';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import {
@@ -23,8 +22,10 @@ export class AuthController {
 
   @Post('login')
   @Throttle({ default: { limit: 5, ttl: 60000 } })
-  @UsePipes(new ZodValidationPipe(loginSchema))
-  async login(@Body() body: { email: string; password: string }, @ClientIp() ip: string) {
+  async login(
+    @Body(new ZodValidationPipe(loginSchema)) body: LoginDto,
+    @ClientIp() ip: string,
+  ) {
     const user = await this.authService.validateUser(body.email, body.password);
     if (!user) {
       throw new UnauthorizedException('Credenciais inválidas');
@@ -33,8 +34,9 @@ export class AuthController {
   }
 
   @Post('refresh')
-  @UsePipes(new ZodValidationPipe(refreshSchema))
-  async refresh(@Body() body: { refreshToken: string }) {
+  async refresh(
+    @Body(new ZodValidationPipe(refreshSchema)) body: { refreshToken: string },
+  ) {
     try {
       return await this.authService.refreshTokens(body.refreshToken);
     } catch {

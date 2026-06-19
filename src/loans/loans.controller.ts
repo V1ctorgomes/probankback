@@ -6,7 +6,6 @@ import {
   Post,
   Query,
   UseGuards,
-  UsePipes,
 } from '@nestjs/common';
 import { LoanStatus, UserRole } from '@prisma/client';
 import { LoansService } from './loans.service';
@@ -28,9 +27,9 @@ export class LoansController {
 
   @Post()
   @Roles(UserRole.ADMIN, UserRole.OPERADOR)
-  @UsePipes(new ZodValidationPipe(createLoanSchema))
   create(
-    @Body() body: Parameters<LoansService['create']>[0],
+    @Body(new ZodValidationPipe(createLoanSchema))
+    body: Parameters<LoansService['create']>[0],
     @CurrentUser() user: AuthUser,
     @ClientIp() ip: string,
   ) {

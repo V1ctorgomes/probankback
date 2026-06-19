@@ -5,7 +5,6 @@ import {
   Param,
   Post,
   UseGuards,
-  UsePipes,
 } from '@nestjs/common';
 import { UserRole } from '@prisma/client';
 import { PaymentsService } from './payments.service';
@@ -27,9 +26,9 @@ export class PaymentsController {
 
   @Post()
   @Roles(UserRole.ADMIN, UserRole.OPERADOR)
-  @UsePipes(new ZodValidationPipe(createPaymentSchema))
   create(
-    @Body() body: Parameters<PaymentsService['create']>[0],
+    @Body(new ZodValidationPipe(createPaymentSchema))
+    body: Parameters<PaymentsService['create']>[0],
     @CurrentUser() user: AuthUser,
     @ClientIp() ip: string,
   ) {
