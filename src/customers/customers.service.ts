@@ -34,10 +34,10 @@ export class CustomersService {
     return customer;
   }
 
-  async findAll(search?: string, includeInactive = false) {
+  async findAll(search?: string, onlyActive = false) {
     return this.prisma.customer.findMany({
       where: {
-        ...(includeInactive ? {} : { ativo: true }),
+        ...(onlyActive ? { ativo: true } : {}),
         ...(search
           ? {
               OR: [

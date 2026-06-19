@@ -44,9 +44,9 @@ export class CustomersController {
   @Roles(UserRole.ADMIN, UserRole.OPERADOR, UserRole.LEITURA)
   findAll(
     @Query('search') search?: string,
-    @Query('includeInactive') includeInactive?: string,
+    @Query('onlyActive') onlyActive?: string,
   ) {
-    return this.customersService.findAll(search, includeInactive === 'true');
+    return this.customersService.findAll(search, onlyActive === 'true');
   }
 
   @Get(':id')
