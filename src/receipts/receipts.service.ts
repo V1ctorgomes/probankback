@@ -4,6 +4,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { InterestService } from '../loans/interest.service';
 import {
   endOfMonth,
+  dueDateForReference,
   roundMoney,
   startOfMonth,
   toNumber,
@@ -16,7 +17,7 @@ export class ReceiptsService {
     private interestService: InterestService,
   ) {}
 
-  async getByMonth(month: string) {
+  async getByMonth(month: string, customerId?: string) {
     const [year, monthNum] = month.split('-').map(Number);
     if (!year || !monthNum) {
       month = new Date().toISOString().slice(0, 7);
@@ -31,7 +32,10 @@ export class ReceiptsService {
     const monthEnd = endOfMonth(new Date(Date.UTC(y, m - 1, 1)));
 
     const activeLoans = await this.prisma.loan.findMany({
-      where: { status: LoanStatus.ATIVO },
+      where: {
+        status: LoanStatus.ATIVO,
+        ...(customerId ? { customerId } : {}),
+      },
       include: {
         customer: { select: { id: true, nome: true, cpf: true } },
         interestCycles: { where: { referencia: reference } },
@@ -63,7 +67,7 @@ export class ReceiptsService {
       );
       if (jurosPendente <= 0) continue;
 
-      const cycleEnd = new Date(Date.UTC(y, m, 0, 23, 59, 59, 999));
+      const cycleDueDate = dueDateForReference(reference, loan.diaPagamento);
 
       pending.push({
         cycleId: cycle.id,
@@ -72,12 +76,15 @@ export class ReceiptsService {
         jurosPendente,
         principalAtual: toNumber(loan.principalAtual),
         customer: loan.customer,
-        overdue: cycleEnd < new Date(),
+        overdue: cycleDueDate < new Date(),
       });
     }
 
     const payments = await this.prisma.payment.findMany({
-      where: { createdAt: { gte: monthStart, lte: monthEnd } },
+      where: {
+        createdAt: { gte: monthStart, lte: monthEnd },
+        ...(customerId ? { loan: { customerId } } : {}),
+      },
       orderBy: { createdAt: 'desc' },
       include: {
         user: { select: { id: true, nome: true } },

@@ -72,6 +72,7 @@ model Loan {
   taxaJurosMensal   Decimal    @db.Decimal(7, 4)
   status            LoanStatus @default(ATIVO)
   dataInicio        DateTime
+  diaPagamento      Int        @default(1)
   createdAt         DateTime   @default(now())
 
   customer       Customer        @relation(fields: [customerId], references: [id])

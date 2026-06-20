@@ -3,7 +3,7 @@ import { LoanStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { InterestService } from '../loans/interest.service';
 import { normalizeCpf, validateCpf } from '../common/utils/cpf.util';
-import { roundMoney, toNumber } from '../common/utils/money.util';
+import { roundMoney, toNumber, dueDateForReference } from '../common/utils/money.util';
 
 @Injectable()
 export class PortalService {
@@ -43,6 +43,7 @@ export class PortalService {
     let overdueCount = 0;
     const contracts: Array<{
       dataInicio: string;
+      diaPagamento: number;
       status: string;
       principalAtual: number;
       jurosPendentes: number;
@@ -74,11 +75,11 @@ export class PortalService {
             );
             if (jurosPendente <= 0) return null;
 
-            const [year, month] = cycle.referencia.split('-').map(Number);
-            const cycleEnd = new Date(
-              Date.UTC(year, month, 0, 23, 59, 59, 999),
+            const cycleDueDate = dueDateForReference(
+              cycle.referencia,
+              loan.diaPagamento,
             );
-            const atrasado = cycleEnd < now;
+            const atrasado = cycleDueDate < now;
             if (atrasado) overdueCount += 1;
 
             return {
@@ -95,6 +96,7 @@ export class PortalService {
 
         contracts.push({
           dataInicio: loan.dataInicio.toISOString(),
+          diaPagamento: loan.diaPagamento,
           status:
             loan.status === LoanStatus.ATIVO
               ? 'Ativo'

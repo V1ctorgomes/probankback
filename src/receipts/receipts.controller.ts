@@ -12,9 +12,13 @@ export class ReceiptsController {
   constructor(private receiptsService: ReceiptsService) {}
 
   @Get()
-  getByMonth(@Query('month') month?: string) {
+  getByMonth(
+    @Query('month') month?: string,
+    @Query('customerId') customerId?: string,
+  ) {
     return this.receiptsService.getByMonth(
       month ?? new Date().toISOString().slice(0, 7),
+      customerId,
     );
   }
 }

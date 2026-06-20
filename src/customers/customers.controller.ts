@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   Patch,
@@ -85,5 +86,15 @@ export class CustomersController {
     @ClientIp() ip: string,
   ) {
     return this.customersService.activate(id, user.id, ip);
+  }
+
+  @Delete(':id')
+  @Roles(UserRole.ADMIN, UserRole.OPERADOR)
+  remove(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthUser,
+    @ClientIp() ip: string,
+  ) {
+    return this.customersService.remove(id, user.id, ip);
   }
 }

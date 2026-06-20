@@ -41,13 +41,17 @@ export class LoansService {
       throw new NotFoundException('Cliente não encontrado ou inativo');
     }
 
+    const dataInicio = new Date(dto.dataInicio);
+    const diaPagamento = dto.diaPagamento ?? dataInicio.getUTCDate();
+
     const loan = await this.prisma.loan.create({
       data: {
         customerId: dto.customerId,
         principalOriginal: dto.principalOriginal,
         principalAtual: dto.principalOriginal,
         taxaJurosMensal: dto.taxaJurosMensal,
-        dataInicio: new Date(dto.dataInicio),
+        dataInicio,
+        diaPagamento,
       },
       include: { customer: { select: { id: true, nome: true, cpf: true } } },
     });
@@ -157,6 +161,7 @@ export class LoansService {
     taxaJurosMensal: { toNumber?: () => number } | number | string;
     status: LoanStatus;
     dataInicio: Date;
+    diaPagamento: number;
     createdAt: Date;
     customer?: unknown;
   }) {

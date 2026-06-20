@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Injectable,
   NotFoundException,
   ConflictException,
@@ -51,12 +52,16 @@ export class CustomersService {
           : {}),
       },
       orderBy: { nome: 'asc' },
+      include: {
+        _count: { select: { loans: true } },
+      },
     });
 
     return Promise.all(
-      customers.map(async (customer) => ({
+      customers.map(async ({ _count, ...customer }) => ({
         ...customer,
         saldoDevedor: await this.getCustomerDebt(customer.id),
+        podeExcluir: _count.loans === 0,
       })),
     );
   }
@@ -183,5 +188,34 @@ export class CustomersService {
       ip,
     });
     return customer;
+  }
+
+  async remove(id: string, userId: string, ip?: string) {
+    const customer = await this.prisma.customer.findUnique({
+      where: { id },
+      include: { _count: { select: { loans: true } } },
+    });
+
+    if (!customer) {
+      throw new NotFoundException('Cliente não encontrado');
+    }
+
+    if (customer._count.loans > 0) {
+      throw new BadRequestException(
+        'Não é possível excluir cliente com empréstimos vinculados',
+      );
+    }
+
+    await this.prisma.customer.delete({ where: { id } });
+
+    await this.auditService.log({
+      userId,
+      action: 'DELETE',
+      entity: 'Customer',
+      entityId: id,
+      ip,
+    });
+
+    return { ok: true };
   }
 }

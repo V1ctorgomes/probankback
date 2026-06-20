@@ -6,6 +6,7 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   DEACTIVATE: 'Desativação',
   ACTIVATE: 'Reativação',
   CLOSE: 'Encerramento',
+  DELETE: 'Exclusão',
 };
 
 export const AUDIT_ENTITY_LABELS: Record<string, string> = {
