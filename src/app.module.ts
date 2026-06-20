@@ -10,6 +10,9 @@ import { PaymentsModule } from './payments/payments.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { AuditModule } from './audit/audit.module';
 import { ReceiptsModule } from './receipts/receipts.module';
+import { PortalModule } from './portal/portal.module';
+import { CategoriesModule } from './categories/categories.module';
+import { TransactionsModule } from './transactions/transactions.module';
 import { HealthController } from './health/health.controller';
 
 @Module({
@@ -29,6 +32,9 @@ import { HealthController } from './health/health.controller';
     DashboardModule,
     AuditModule,
     ReceiptsModule,
+    PortalModule,
+    CategoriesModule,
+    TransactionsModule,
   ],
   controllers: [HealthController],
   providers: [

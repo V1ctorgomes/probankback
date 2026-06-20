@@ -19,6 +19,21 @@ enum LoanStatus {
   ENCERRADO
 }
 
+enum TransactionType {
+  INCOME
+  EXPENSE
+}
+
+enum TransactionOrigin {
+  MANUAL
+  LOAN_PAYMENT
+}
+
+enum CategoryType {
+  INCOME
+  EXPENSE
+}
+
 model User {
   id        String   @id @default(uuid())
   nome      String
@@ -28,9 +43,10 @@ model User {
   ativo     Boolean  @default(true)
   createdAt DateTime @default(now())
 
-  sessions  Session[]
-  payments  Payment[]
-  auditLogs AuditLog[]
+  sessions     Session[]
+  payments     Payment[]
+  auditLogs    AuditLog[]
+  transactions Transaction[]
 }
 
 model Customer {
@@ -86,8 +102,39 @@ model Payment {
   userId           String
   createdAt        DateTime @default(now())
 
-  loan Loan @relation(fields: [loanId], references: [id])
-  user User @relation(fields: [userId], references: [id])
+  loan         Loan          @relation(fields: [loanId], references: [id])
+  user         User          @relation(fields: [userId], references: [id])
+  transaction  Transaction?
+}
+
+model Category {
+  id        String       @id @default(uuid())
+  nome      String
+  tipo      CategoryType
+  ativo     Boolean      @default(true)
+  createdAt DateTime     @default(now())
+
+  transactions Transaction[]
+
+  @@unique([nome, tipo])
+}
+
+model Transaction {
+  id          String            @id @default(uuid())
+  tipo        TransactionType
+  origem      TransactionOrigin @default(MANUAL)
+  descricao   String
+  categoryId  String?
+  valor       Decimal           @db.Decimal(12, 2)
+  data        DateTime
+  observacoes String?
+  paymentId   String?           @unique
+  userId      String?
+  createdAt   DateTime          @default(now())
+
+  category Category? @relation(fields: [categoryId], references: [id])
+  payment  Payment?  @relation(fields: [paymentId], references: [id])
+  user     User?     @relation(fields: [userId], references: [id])
 }
 
 model AuditLog {

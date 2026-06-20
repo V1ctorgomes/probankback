@@ -3,7 +3,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { LoanStatus } from '@prisma/client';
+import { LoanStatus, TransactionOrigin, TransactionType } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { InterestService } from '../loans/interest.service';
@@ -68,7 +68,7 @@ export class PaymentsService {
         },
       });
 
-      return tx.payment.create({
+      const createdPayment = await tx.payment.create({
         data: {
           loanId: loan.id,
           valor: dto.valor,
@@ -88,6 +88,25 @@ export class PaymentsService {
           },
         },
       });
+
+      const category = await tx.category.findFirst({
+        where: { id: 'cat-income-loan' },
+      });
+
+      await tx.transaction.create({
+        data: {
+          tipo: TransactionType.INCOME,
+          origem: TransactionOrigin.LOAN_PAYMENT,
+          descricao: `Recebimento - ${createdPayment.loan.customer.nome}`,
+          categoryId: category?.id,
+          valor: dto.valor,
+          data: new Date(),
+          paymentId: createdPayment.id,
+          userId,
+        },
+      });
+
+      return createdPayment;
     });
 
     await this.auditService.log({

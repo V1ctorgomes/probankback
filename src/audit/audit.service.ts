@@ -1,5 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import {
+  AUDIT_ACTION_LABELS,
+  AUDIT_ENTITY_LABELS,
+  formatAuditDescription,
+} from '../common/utils/audit-labels.util';
 
 @Injectable()
 export class AuditService {
@@ -25,12 +30,24 @@ export class AuditService {
         take: limit,
         orderBy: { createdAt: 'desc' },
         include: {
-          user: { select: { id: true, nome: true, email: true } },
+          user: { select: { nome: true } },
         },
       }),
       this.prisma.auditLog.count(),
     ]);
 
-    return { items, total, page, limit };
+    return {
+      items: items.map((item) => ({
+        id: item.id,
+        createdAt: item.createdAt,
+        usuario: item.user?.nome ?? 'Sistema',
+        acao: AUDIT_ACTION_LABELS[item.action] ?? item.action,
+        registro: AUDIT_ENTITY_LABELS[item.entity] ?? item.entity,
+        descricao: formatAuditDescription(item.action, item.entity),
+      })),
+      total,
+      page,
+      limit,
+    };
   }
 }
