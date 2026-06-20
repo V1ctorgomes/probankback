@@ -3,16 +3,19 @@ import {
   NotFoundException,
   ConflictException,
 } from '@nestjs/common';
+import { LoanStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
+import { InterestService } from '../loans/interest.service';
 import { CreateCustomerDto, UpdateCustomerDto } from './dto/customer.dto';
-import { toNumber } from '../common/utils/money.util';
+import { roundMoney, toNumber } from '../common/utils/money.util';
 
 @Injectable()
 export class CustomersService {
   constructor(
     private prisma: PrismaService,
     private auditService: AuditService,
+    private interestService: InterestService,
   ) {}
 
   async create(dto: CreateCustomerDto, userId: string, ip?: string) {
@@ -35,7 +38,7 @@ export class CustomersService {
   }
 
   async findAll(search?: string, onlyActive = false) {
-    return this.prisma.customer.findMany({
+    const customers = await this.prisma.customer.findMany({
       where: {
         ...(onlyActive ? { ativo: true } : {}),
         ...(search
@@ -49,6 +52,27 @@ export class CustomersService {
       },
       orderBy: { nome: 'asc' },
     });
+
+    return Promise.all(
+      customers.map(async (customer) => ({
+        ...customer,
+        saldoDevedor: await this.getCustomerDebt(customer.id),
+      })),
+    );
+  }
+
+  async getCustomerDebt(customerId: string) {
+    const loans = await this.prisma.loan.findMany({
+      where: { customerId, status: LoanStatus.ATIVO },
+    });
+
+    let total = 0;
+    for (const loan of loans) {
+      total += toNumber(loan.principalAtual);
+      total += await this.interestService.getPendingInterest(loan.id);
+    }
+
+    return roundMoney(total);
   }
 
   async findOne(id: string) {
@@ -69,14 +93,42 @@ export class CustomersService {
       throw new NotFoundException('Cliente não encontrado');
     }
 
+    const saldoDevedor = await this.getCustomerDebt(id);
+    const loans = await Promise.all(
+      customer.loans.map(async (loan) => {
+        await this.interestService.ensureCycles(loan.id);
+        const jurosPendentes = await this.interestService.getPendingInterest(
+          loan.id,
+        );
+        return {
+          ...loan,
+          principalOriginal: toNumber(loan.principalOriginal),
+          principalAtual: toNumber(loan.principalAtual),
+          taxaJurosMensal: toNumber(loan.taxaJurosMensal),
+          jurosPendentes,
+          interestCycles: loan.interestCycles.map((cycle) => ({
+            ...cycle,
+            principalBase: toNumber(cycle.principalBase),
+            jurosGerado: toNumber(cycle.jurosGerado),
+            jurosPago: toNumber(cycle.jurosPago),
+            jurosPendente: roundMoney(
+              toNumber(cycle.jurosGerado) - toNumber(cycle.jurosPago),
+            ),
+          })),
+          payments: loan.payments.map((payment) => ({
+            ...payment,
+            valor: toNumber(payment.valor),
+            jurosAbatido: toNumber(payment.jurosAbatido),
+            principalAbatido: toNumber(payment.principalAbatido),
+          })),
+        };
+      }),
+    );
+
     return {
       ...customer,
-      loans: customer.loans.map((loan) => ({
-        ...loan,
-        principalOriginal: toNumber(loan.principalOriginal),
-        principalAtual: toNumber(loan.principalAtual),
-        taxaJurosMensal: toNumber(loan.taxaJurosMensal),
-      })),
+      saldoDevedor,
+      loans,
     };
   }
 
@@ -110,6 +162,22 @@ export class CustomersService {
     await this.auditService.log({
       userId,
       action: 'DEACTIVATE',
+      entity: 'Customer',
+      entityId: id,
+      ip,
+    });
+    return customer;
+  }
+
+  async activate(id: string, userId: string, ip?: string) {
+    await this.findOne(id);
+    const customer = await this.prisma.customer.update({
+      where: { id },
+      data: { ativo: true },
+    });
+    await this.auditService.log({
+      userId,
+      action: 'ACTIVATE',
       entity: 'Customer',
       entityId: id,
       ip,

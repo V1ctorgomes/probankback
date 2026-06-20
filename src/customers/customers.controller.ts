@@ -76,4 +76,14 @@ export class CustomersController {
   ) {
     return this.customersService.deactivate(id, user.id, ip);
   }
+
+  @Post(':id/activate')
+  @Roles(UserRole.ADMIN, UserRole.OPERADOR)
+  activate(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthUser,
+    @ClientIp() ip: string,
+  ) {
+    return this.customersService.activate(id, user.id, ip);
+  }
 }
