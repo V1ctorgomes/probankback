@@ -3,7 +3,8 @@ import { LoanStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { InterestService } from '../loans/interest.service';
 import { normalizeCpf, validateCpf } from '../common/utils/cpf.util';
-import { roundMoney, toNumber, dueDateForReference } from '../common/utils/money.util';
+import { roundMoney, toNumber } from '../common/utils/money.util';
+import { serializeInterestCycle } from '../common/utils/interest-cycle.util';
 
 @Injectable()
 export class PortalService {
@@ -49,8 +50,11 @@ export class PortalService {
       jurosPendentes: number;
       ciclos: Array<{
         referencia: string;
+        jurosGerado: number;
+        jurosPago: number;
         jurosPendente: number;
-        atrasado: boolean;
+        vencimento: string;
+        status: 'PAGO' | 'PENDENTE' | 'ATRASADO';
       }>;
     }> = [];
 
@@ -70,29 +74,24 @@ export class PortalService {
         const now = new Date();
         const cycleItems = cycles
           .map((cycle) => {
-            const jurosPendente = roundMoney(
-              toNumber(cycle.jurosGerado) - toNumber(cycle.jurosPago),
-            );
-            if (jurosPendente <= 0) return null;
-
-            const cycleDueDate = dueDateForReference(
-              cycle.referencia,
+            const serialized = serializeInterestCycle(
+              cycle,
               loan.diaPagamento,
+              now,
             );
-            const atrasado = cycleDueDate < now;
-            if (atrasado) overdueCount += 1;
-
+            if (serialized.status === 'ATRASADO') {
+              overdueCount += 1;
+            }
             return {
-              referencia: cycle.referencia,
-              jurosPendente,
-              atrasado,
+              referencia: serialized.referencia,
+              jurosGerado: serialized.jurosGerado,
+              jurosPago: serialized.jurosPago,
+              jurosPendente: serialized.jurosPendente,
+              vencimento: serialized.vencimento,
+              status: serialized.status,
             };
           })
-          .filter(Boolean) as Array<{
-          referencia: string;
-          jurosPendente: number;
-          atrasado: boolean;
-        }>;
+          .sort((left, right) => left.referencia.localeCompare(right.referencia));
 
         contracts.push({
           dataInicio: loan.dataInicio.toISOString(),

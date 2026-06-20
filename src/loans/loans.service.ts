@@ -8,7 +8,8 @@ import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { InterestService } from './interest.service';
 import { CreateLoanDto } from './dto/loan.dto';
-import { roundMoney, toNumber } from '../common/utils/money.util';
+import { serializeInterestCycle } from '../common/utils/interest-cycle.util';
+import { toNumber } from '../common/utils/money.util';
 
 type LoanWithRelations = Prisma.LoanGetPayload<{
   include: {
@@ -132,15 +133,9 @@ export class LoansService {
     return {
       ...this.serializeLoan(loan),
       jurosPendentes,
-      interestCycles: loan.interestCycles.map((cycle) => ({
-        ...cycle,
-        principalBase: toNumber(cycle.principalBase),
-        jurosGerado: toNumber(cycle.jurosGerado),
-        jurosPago: toNumber(cycle.jurosPago),
-        jurosPendente: roundMoney(
-          toNumber(cycle.jurosGerado) - toNumber(cycle.jurosPago),
-        ),
-      })),
+      interestCycles: loan.interestCycles
+        .map((cycle) => serializeInterestCycle(cycle, loan.diaPagamento))
+        .sort((left, right) => left.referencia.localeCompare(right.referencia)),
       payments:
         'payments' in loan
           ? loan.payments.map((payment) => ({

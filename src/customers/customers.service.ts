@@ -10,6 +10,7 @@ import { AuditService } from '../audit/audit.service';
 import { InterestService } from '../loans/interest.service';
 import { CreateCustomerDto, UpdateCustomerDto } from './dto/customer.dto';
 import { roundMoney, toNumber } from '../common/utils/money.util';
+import { serializeInterestCycle } from '../common/utils/interest-cycle.util';
 
 @Injectable()
 export class CustomersService {
@@ -111,15 +112,9 @@ export class CustomersService {
           principalAtual: toNumber(loan.principalAtual),
           taxaJurosMensal: toNumber(loan.taxaJurosMensal),
           jurosPendentes,
-          interestCycles: loan.interestCycles.map((cycle) => ({
-            ...cycle,
-            principalBase: toNumber(cycle.principalBase),
-            jurosGerado: toNumber(cycle.jurosGerado),
-            jurosPago: toNumber(cycle.jurosPago),
-            jurosPendente: roundMoney(
-              toNumber(cycle.jurosGerado) - toNumber(cycle.jurosPago),
-            ),
-          })),
+          interestCycles: loan.interestCycles
+            .map((cycle) => serializeInterestCycle(cycle, loan.diaPagamento))
+            .sort((left, right) => left.referencia.localeCompare(right.referencia)),
           payments: loan.payments.map((payment) => ({
             ...payment,
             valor: toNumber(payment.valor),

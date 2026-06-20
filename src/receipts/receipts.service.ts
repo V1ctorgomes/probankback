@@ -3,8 +3,12 @@ import { LoanStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { InterestService } from '../loans/interest.service';
 import {
+  INTEREST_CYCLE_STATUS_ORDER,
+  InterestCycleStatus,
+  serializeInterestCycle,
+} from '../common/utils/interest-cycle.util';
+import {
   endOfMonth,
-  dueDateForReference,
   roundMoney,
   startOfMonth,
   toNumber,
@@ -30,6 +34,7 @@ export class ReceiptsService {
     const [y, m] = reference.split('-').map(Number);
     const monthStart = startOfMonth(new Date(Date.UTC(y, m - 1, 1)));
     const monthEnd = endOfMonth(new Date(Date.UTC(y, m - 1, 1)));
+    const now = new Date();
 
     const activeLoans = await this.prisma.loan.findMany({
       where: {
@@ -38,18 +43,20 @@ export class ReceiptsService {
       },
       include: {
         customer: { select: { id: true, nome: true, cpf: true } },
-        interestCycles: { where: { referencia: reference } },
       },
     });
 
-    const pending: Array<{
+    const installments: Array<{
       cycleId: string;
       loanId: string;
       referencia: string;
+      jurosGerado: number;
+      jurosPago: number;
       jurosPendente: number;
+      vencimento: string;
+      status: InterestCycleStatus;
       principalAtual: number;
       customer: { id: string; nome: string; cpf: string };
-      overdue: boolean;
     }> = [];
 
     for (const loan of activeLoans) {
@@ -62,23 +69,56 @@ export class ReceiptsService {
 
       if (!cycle) continue;
 
-      const jurosPendente = roundMoney(
-        toNumber(cycle.jurosGerado) - toNumber(cycle.jurosPago),
-      );
-      if (jurosPendente <= 0) continue;
+      const serialized = serializeInterestCycle(cycle, loan.diaPagamento, now);
 
-      const cycleDueDate = dueDateForReference(reference, loan.diaPagamento);
-
-      pending.push({
-        cycleId: cycle.id,
+      installments.push({
+        cycleId: serialized.id,
         loanId: loan.id,
-        referencia: reference,
-        jurosPendente,
+        referencia: serialized.referencia,
+        jurosGerado: serialized.jurosGerado,
+        jurosPago: serialized.jurosPago,
+        jurosPendente: serialized.jurosPendente,
+        vencimento: serialized.vencimento,
+        status: serialized.status,
         principalAtual: toNumber(loan.principalAtual),
         customer: loan.customer,
-        overdue: cycleDueDate < new Date(),
       });
     }
+
+    installments.sort((left, right) => {
+      const statusDiff =
+        INTEREST_CYCLE_STATUS_ORDER[left.status] -
+        INTEREST_CYCLE_STATUS_ORDER[right.status];
+      if (statusDiff !== 0) return statusDiff;
+      return left.customer.nome.localeCompare(right.customer.nome, 'pt-BR');
+    });
+
+    const summary = {
+      total: installments.length,
+      pagos: installments.filter((item) => item.status === 'PAGO').length,
+      pendentes: installments.filter((item) => item.status === 'PENDENTE').length,
+      atrasados: installments.filter((item) => item.status === 'ATRASADO').length,
+      valorPago: roundMoney(
+        installments
+          .filter((item) => item.status === 'PAGO')
+          .reduce((sum, item) => sum + item.jurosGerado, 0),
+      ),
+      valorPendente: roundMoney(
+        installments
+          .filter((item) => item.status === 'PENDENTE')
+          .reduce((sum, item) => sum + item.jurosPendente, 0),
+      ),
+      valorAtrasado: roundMoney(
+        installments
+          .filter((item) => item.status === 'ATRASADO')
+          .reduce((sum, item) => sum + item.jurosPendente, 0),
+      ),
+    };
+
+    const pending = installments.filter((item) => item.status !== 'PAGO');
+    const pendingTotal = roundMoney(
+      pending.reduce((sum, item) => sum + item.jurosPendente, 0),
+    );
 
     const payments = await this.prisma.payment.findMany({
       where: {
@@ -107,15 +147,14 @@ export class ReceiptsService {
       customer: payment.loan.customer,
     }));
 
-    const pendingTotal = roundMoney(
-      pending.reduce((sum, item) => sum + item.jurosPendente, 0),
-    );
     const receivedTotal = roundMoney(
       received.reduce((sum, item) => sum + item.valor, 0),
     );
 
     return {
       month: reference,
+      installments,
+      summary,
       pending,
       pendingTotal,
       received,
